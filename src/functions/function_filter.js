@@ -185,3 +185,25 @@ function getCacheStatus() {
     return { error: `Error reading cache: ${error}` };
   }
 }
+
+function filterNotReactionUsers(mentionedUsers = [], reactionUsers = []) {
+  if (!mentionedUsers || mentionedUsers.length === 0) {
+    return {
+      ok: false,
+      message: "Mentioned User does not exist or empty"
+    }
+  }
+
+  var notReactionUser = []
+  mentionedUsers.forEach(userId => {
+    if (!reactionUsers.includes(userId)) {
+      notReactionUser.push(userId);
+    }
+  })
+
+  return {
+    ok: true,
+    message: "Successfully filtered users",
+    value: notReactionUser
+  }
+}
