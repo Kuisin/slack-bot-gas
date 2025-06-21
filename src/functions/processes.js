@@ -103,7 +103,7 @@ function processReactionAny(channelId, messageTs, slackBotToken) {
   const reactionUsers = reactionUsersResult.value;
   console.log("reactionUsers:", reactionUsers);
 
-  const reactionList = orderReaction(Object.keys(reactionUsers).map(reaction => reaction !== REACTION_READ));
+  const reactionList = orderReaction(Object.keys(reactionUsers).filter(reaction => reaction !== REACTION_READ));
   console.log("reactionList:", reactionList);
 
   const reactionUsersFlat = [];
