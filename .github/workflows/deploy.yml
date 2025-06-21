@@ -13,17 +13,41 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Setup Node.js 16.x
-        uses: actions/setup-node@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: '16.x'
+          node-version: 20
+
       - name: Install Clasp
         run: |
           npm init -y
-          npm install clasp -g
-      - name: Create clasprc.json
+          npm install -g @google/clasp
+      # - name: Create clasprc.json
+      #   run: |
+      #     echo \{\"token\":\{\"access_token\":\"${{ secrets.ACCESS_TOKEN}}\",\"scope\":\"https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.webapp.deploy https://www.googleapis.com/auth/logging.read openid https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/script.deployments https://www.googleapis.com/auth/service.management https://www.googleapis.com/auth/cloud-platform\",\"token_type\":\"Bearer\",\"id_token\":\"${{ secrets.ID_TOKEN }}\",\"expiry_date\":1620870307822,\"refresh_token\":\"${{ secrets.REFRESH_TOKEN }}\"\},\"oauth2ClientSettings\":\{\"clientId\":\"${{ secrets.CLIENTID }}\",\"clientSecret\":\"${{ secrets.CLIENTSECRET }}\",\"redirectUri\":\"http://localhost\"\},\"isLocalCreds\":false\} > ~/.clasprc.json
+      # - name: Deploy
+      #   run: |
+      #     clasp push
+      - name: Authorize Clasp
+        env:
+          CLASP_TOKEN: ${{ secrets.CLASP_TOKEN }}  # GitHub Secrets からトークンを取得
+
+        # 認証情報を保存
         run: |
-          echo \{\"token\":\{\"access_token\":\"${{ secrets.ACCESS_TOKEN}}\",\"scope\":\"https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.metadata.readonly https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.webapp.deploy https://www.googleapis.com/auth/logging.read openid https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/script.deployments https://www.googleapis.com/auth/service.management https://www.googleapis.com/auth/cloud-platform\",\"token_type\":\"Bearer\",\"id_token\":\"${{ secrets.ID_TOKEN }}\",\"expiry_date\":1620870307822,\"refresh_token\":\"${{ secrets.REFRESH_TOKEN }}\"\},\"oauth2ClientSettings\":\{\"clientId\":\"${{ secrets.CLIENTID }}\",\"clientSecret\":\"${{ secrets.CLIENTSECRET }}\",\"redirectUri\":\"http://localhost\"\},\"isLocalCreds\":false\} > ~/.clasprc.json
-      - name: Deploy
+          echo $CLASP_TOKEN > ~/.clasprc.json
+      
+      - name: Clasp push by directories
+        
+        # 以下の処理を実行
+          # すべてのディレクトリを取得
+          # Clasp の状態を確認し、プロジェクトならプッシュ または、強制プッシュ
+          # 元のディレクトリに戻る
         run: |
-          clasp push
+          for dir in $(ls -d */); do
+            cd $dir
+            if clasp status; then  
+              clasp push -f  
+            fi
+            cd ..
+          done
