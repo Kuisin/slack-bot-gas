@@ -1,3 +1,7 @@
+const TRIGGER_REACTION_READ = "check_eyes";
+const TRIGGER_REACTION_ANY = "check_any";
+const REACTION_READ = "eyes";
+
 function processReactionRead(channelId, messageTs, slackBotToken) {
   if (!slackBotToken) {
     return {
@@ -5,10 +9,6 @@ function processReactionRead(channelId, messageTs, slackBotToken) {
       message: "Token not exsits"
     }
   }
-
-  // Get reactions from user properties
-  const TRIGGER_REACTION_READ = "check_eyes";
-  const REACTION_READ = "eyes";
 
   // Initialize reaction on start
   addReaction(channelId, messageTs, TRIGGER_REACTION_READ, slackBotToken);
@@ -70,7 +70,7 @@ function processReactionRead(channelId, messageTs, slackBotToken) {
   }
 }
 
-function processReactionRead(channelId, messageTs, slackBotToken) {
+function processReactionAny(channelId, messageTs, slackBotToken) {
   if (!slackBotToken) {
     return {
       ok: false,
@@ -78,13 +78,8 @@ function processReactionRead(channelId, messageTs, slackBotToken) {
     }
   }
 
-  // Get reactions from user properties
-  const TRIGGER_REACTION_READ = "check_eyes";
-  const TRIGGER_READ = "eyes";
-
   // Initialize reaction on start
-  addReaction(channelId, messageTs, TRIGGER_REACTION_READ, slackBotToken);
-  removeReaction(channelId, messageTs, TRIGGER_READ, slackBotToken);
+  addReaction(channelId, messageTs, TRIGGER_REACTION_ANY, slackBotToken);
 
   // Get details from message
   var mentionedUsersResult = getMentionedUsers(channelId, messageTs, slackBotToken);
@@ -96,7 +91,7 @@ function processReactionRead(channelId, messageTs, slackBotToken) {
   }
 
   const { allUsers: mentionedUsers } = mentionedUsersResult.value;
-  addReaction(channelId, messageTs, TRIGGER_READ, slackBotToken);
+  addReaction(channelId, messageTs, REACTION_READ, slackBotToken);
 
   const reactionUsersResult = getReactionUsers(channelId, messageTs, slackBotToken);
   if (!reactionUsersResult.ok) {
@@ -106,9 +101,16 @@ function processReactionRead(channelId, messageTs, slackBotToken) {
     }
   }
   const reactionUsers = reactionUsersResult.value;
-  // console.log(TRIGGER_READ, reactionUsers[TRIGGER_READ]);
+  // console.log(REACTION_READ, reactionUsers[REACTION_READ]);
 
-  const notReactionUserResult = filterNotReactionUsers(mentionedUsers, reactionUsers[TRIGGER_READ]);
+  const reactionList = orderReaction(Object.keys(reactionUsers).map(reaction => reaction !== REACTION_READ));
+  const reactionUsersFlat = [];
+  reactionList.forEach(reaction => {
+    removeReaction(channelId, messageTs, reaction, slackBotToken);
+    reactionUsersFlat.push(...reactionUsers[reaction]);
+  });
+  
+  const notReactionUserResult = filterNotReactionUsers(mentionedUsers, new Set(reactionUsersFlat));
   if (!notReactionUserResult.ok) {
     return {
       ok: false,
@@ -122,20 +124,19 @@ function processReactionRead(channelId, messageTs, slackBotToken) {
   if (notReactionUser.length === 0) {
     threadText = "全メンバーのリアクションが完了しています！"
   } else {
-    threadText = notReactionUser.map(userId => `<@${userId}>`).join(" ") + `\nリアクション :${TRIGGER_READ}: をお願いします！`
+    threadText = notReactionUser.map(userId => `<@${userId}>`).join(" ") + `\nリアクション（${reactionList.map(reaction => ` :${reaction}: `).join("or")}）をお願いします！`
   }
 
   // console.log(threadText);
-  postToThread(channelId, messageTs, TRIGGER_REACTION_READ, threadText, slackBotToken);
-
-  removeReaction(channelId, messageTs, TRIGGER_REACTION_READ, slackBotToken);
+  postToThread(channelId, messageTs, TRIGGER_REACTION_ANY, threadText, slackBotToken);
+  removeReaction(channelId, messageTs, TRIGGER_REACTION_ANY, slackBotToken);
 
   return {
     ok: true,
     message: "Reaction checked and mentioned if missing.",
     value: {
       mentionedUsers: mentionedUsers,
-      reactionUsers: reactionUsers[TRIGGER_READ],
+      reactionUsers: reactionUsers[REACTION_READ],
       missingUsers: notReactionUser,
       sentMessage: threadText
     }

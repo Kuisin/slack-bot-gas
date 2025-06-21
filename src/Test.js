@@ -23,9 +23,9 @@ function test() {
   // var setIgnoreUsersResult = bot.setIgnoreUsers(['U08NE5ZN4M6']);
   // console.log(setIgnoreUsersResult);
 
-  // var processReactionReadResult = bot.processReactionRead('C03DC8UQPRB',"1749717160.048489");
-  // console.log(processReactionReadResult);
+  var processReactionReadResult = bot.processReactionAny('C03DC8UQPRB',"1749717160.048489");
+  console.log(processReactionReadResult);
 
-  var orderReactionResult = orderReaction([]);
-  console.log(orderReactionResult);
+  // var orderReactionResult = orderReaction(['one', 'two', 'four', 'three', 'eyes']);
+  // console.log(orderReactionResult);
 }
