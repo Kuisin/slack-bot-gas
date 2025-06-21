@@ -101,9 +101,11 @@ function processReactionAny(channelId, messageTs, slackBotToken) {
     }
   }
   const reactionUsers = reactionUsersResult.value;
-  // console.log(REACTION_READ, reactionUsers[REACTION_READ]);
+  console.log("reactionUsers:", reactionUsers);
 
   const reactionList = orderReaction(Object.keys(reactionUsers).map(reaction => reaction !== REACTION_READ));
+  console.log("reactionList:", reactionList);
+
   const reactionUsersFlat = [];
   reactionList.forEach(reaction => {
     removeReaction(channelId, messageTs, reaction, slackBotToken);
