@@ -1,6 +1,7 @@
 {
   "scriptId": "1NlQGytcrPUQ23jZF32QMpyQwH4ctplm46ctAQsb-syPkWv6it3CFgW8V",
-  "rootDir": "",
+  "rootDir": "src",
+  "projectId": "roomie-public",
   "scriptExtensions": [
     ".js",
     ".gs"
