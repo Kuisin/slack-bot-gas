@@ -2,7 +2,7 @@ function test() {
   // Get the library object
   var bot = getSlackManagerBot();
   
-  // const setTokenResult = bot.setBotApiToken('xoxb-3454300821109-7045468330737-JAy2kzrBNiApXeoOtBn7W6Fb');
+  // const setTokenResult = bot.setBotApiToken('');
   // console.log(setTokenResult);
   
   // var users = bot.getChannelUser('C071DK2JVC1');
