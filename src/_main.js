@@ -1,8 +1,8 @@
-function slackManagerBot(scriptProperties, userProperties = null, options = {}) {
-  if (!scriptProperties) {
+function slackManagerBot(scriptProperties, userProperties = null, options = {}, cache) {
+  if (!scriptProperties || !cache) {
     return {
       ok: false,
-      message: "Script properties is required",
+      message: "Script properties and cache is required",
     }
   }
   if (!userProperties || typeof userProperties !== "object") {
@@ -10,6 +10,7 @@ function slackManagerBot(scriptProperties, userProperties = null, options = {}) 
     userProperties = scriptProperties;
   }
 
+  const CACHE = cache || {};
   const SLACK_BOT_TOKEN = scriptProperties.getProperty("SLACK_BOT_TOKEN_0001") || null;
   const SLACK_USER_TOKEN = scriptProperties.getProperty("SLACK_USER_TOKEN_0001") || null;
   const SLACK_VERIFICATION_TOKEN = scriptProperties.getProperty(
@@ -584,6 +585,17 @@ function slackManagerBot(scriptProperties, userProperties = null, options = {}) 
 
   // USER FUNCTIONS
   function getChannelUser(channelId, slackBotToken) {
+    const cacheKey = `slack_channel_members_${channelId}`;
+    const cached = CACHE.get(cacheKey);
+    if (cached) {
+      console.log(`using cache... [${cacheKey}]`)
+      return {
+        ok: true,
+        message: `Successfully fetch member in channel (id: ${channelId})`,
+        value: JSON.parse(cached),
+      };
+    }
+
     const url = "https://slack.com/api/conversations.members";
     const options = {
       method: "get",
@@ -601,11 +613,15 @@ function slackManagerBot(scriptProperties, userProperties = null, options = {}) 
         message: "Response Error: " + result.error,
       };
     }
-    Logger.log("Members fetched: " + result.members.length);
+    // Logger.log("Members fetched: " + result.members.length);
+
+    const members = filterMembers(result.members.sort(), slackBotToken);
+    CACHE.put(cacheKey, JSON.stringify(members), CACHE_DURATION);
+
     return {
       ok: true,
       message: `Successfully fetch member in channel (id: ${channelId})`,
-      value: filterMembers(result.members.sort(), slackBotToken),
+      value: members,
     };
   }
 
@@ -887,6 +903,327 @@ function slackManagerBot(scriptProperties, userProperties = null, options = {}) 
     }
   }
 
+  // General functions
+  function userInfoFilterIgnoreUsers(users = []) {
+    const ignoreUsersString = scriptProperties.getProperty("SLACK_IGNORE_USERS_0001");
+    const IGNORE_LIST = ignoreUsersString ? ignoreUsersString.split(",").map(id => id.trim()) : [];
+
+    return users.filter(user => !IGNORE_LIST.includes(user.id))
+  }
+  
+  function userInfoFilterBotUsers(users = []) {
+    return users.filter(user => !user.is_bot && user.id !== 'USLACKBOT')
+  }
+  
+  function userInfoFilterMembers(users = []) {
+    const set = new Set(userInfoFilterIgnoreUsers(userInfoFilterBotUsers(users)).filter(user => !user.deleted))
+    return Array.from(set).sort();
+  }
+
+  function getUserDetails(slackBotToken) {
+    const cachedMembers = CACHE.get('slack_members_0001');
+    const cachedTags = CACHE.get('slack_tags_0001');
+    if (cachedMembers && cachedTags) {
+      console.log("using cache... [slack_members_0001][slack_tags_0001]")
+      return {
+        ok: true,
+        message: `Successfully fetch user details`,
+        value: {
+          members: JSON.parse(cachedMembers),
+          tags: JSON.parse(cachedTags),
+        },
+      };
+    }
+  
+    const response = UrlFetchApp.fetch('https://slack.com/api/users.list', {
+      method: 'get',
+      headers: { Authorization: `Bearer ${slackBotToken}` },
+      muteHttpExceptions: true
+    });
+  
+    const code = response.getResponseCode();
+    if (code === 429) throw new Error("Slack API rate limit exceeded. Try again later.");
+  
+    const json = JSON.parse(response.getContentText());
+    if (!json.ok) {
+      throw new Error("Error: " + json.error);
+    }
+  
+    const filteredMembers = userInfoFilterMembers(json.members);
+  
+    const members = {}
+    filteredMembers.forEach(u => {
+      members[u.id] = {
+        id: u.id,
+        full_name: u.profile.real_name,
+        display_name: u.profile.display_name,
+        user_name: u.name,
+        email: u.profile.email,
+        tags: convertTag(u.profile.display_name),
+      }
+    })
+  
+    let tags = {}
+    Object.values(members).forEach(member => {
+      member.tags.forEach(tag => {
+        if (!tags[tag]) {
+          tags[tag] = [];
+        }
+        tags[tag].push(member.id);
+      })
+    })
+  
+    // console.log("users:", users);
+    CACHE.put('slack_members_0001', JSON.stringify(members), CACHE_DURATION);
+    CACHE.put('slack_tags_0001', JSON.stringify(tags), CACHE_DURATION);
+  
+    return {
+      ok: true,
+      message: `Successfully fetch user details`,
+      value: {
+        members,
+        tags,
+      },
+    };
+  }
+  
+  function convertTag(displayName) {
+    const parts = displayName.split('_');
+    let tags = []
+  
+    if (parts.length > 1) {
+      const tagParts = parts.slice(0, -1)
+  
+      tagParts.forEach(tagPart => {
+        tags.push(tagPart);
+      });
+    } else {
+      tags = ["メンバー"]
+    }
+  
+    return tags;
+  }
+  
+  function getUserGroupMap(slackBotToken) {
+    let groupsData = {};
+  
+    const groupsResult = getUserGroupList(slackBotToken);
+    if (!groupsResult.ok) {
+      return {
+        ok: false,
+        message: 'Error: ' + groupsResult.message,
+        value: {},
+      };
+    }
+    groupsResult.value.forEach(group => {
+      const userListResult = getUserByGroup(group.id, slackBotToken);
+      if (userListResult.ok) {
+        groupsData[group.id] = userListResult.value;
+      }
+    });
+  
+    return {
+      ok: true,
+      message: `Successfully fetch user group map`,
+      value: {
+        groupList: groupsResult.value,
+        groupMembers: groupsData,
+      },
+    };
+  }
+  
+  function getUserGroupList(slackBotToken) {
+    const cached = CACHE.get('slack_usergroups_0001');
+    if (cached) {
+      console.log("using cache... [slack_usergroups_0001]");
+      return {
+        ok: true,
+        message: `Successfully fetch user group list`,
+        value: JSON.parse(cached),
+      };
+    }
+  
+    const response = UrlFetchApp.fetch('https://slack.com/api/usergroups.list', {
+      headers: { Authorization: `Bearer ${slackBotToken}` }
+    });
+  
+    const json = JSON.parse(response.getContentText());
+    if (!json.ok) {
+      throw new Error("Error: " + json.error);
+    }
+    
+    const groups = json.usergroups || [];
+    // console.log("group[0]:", groups[0]);
+  
+    const result = groups.map(group => ({
+      id: group.id,
+      name: group.name,
+      handle: group.handle
+    }));
+  
+    CACHE.put('slack_usergroups_0001', JSON.stringify(result), CACHE_DURATION);
+    return {
+      ok: true,
+      message: `Successfully fetch user group list`,
+      value: result || [],
+    };
+  }
+  
+  function getUserByGroup(groupId, slackBotToken) {
+    const groupCacheKey = `group_members_${groupId}`;
+    
+    const cached = CACHE.get(groupCacheKey);
+    if (cached) {
+      console.log(`using cache... [${groupCacheKey}]`);
+      return {
+        ok: true,
+        message: `Successfully fetch user by group`,
+        value: JSON.parse(cached),
+      };
+    }
+  
+    const response = UrlFetchApp.fetch(
+      `https://slack.com/api/usergroups.users.list?usergroup=${groupId}`,
+      { headers: { Authorization: `Bearer ${slackBotToken}` } }
+    );
+  
+    const json = JSON.parse(response.getContentText());
+    if (!json.ok) {
+      throw new Error("Error: " + json.error);
+    }
+    
+    let userIds = json.users || [];
+    CACHE.put(groupCacheKey, JSON.stringify(userIds), CACHE_DURATION);
+  
+    return {
+      ok: true,
+      message: `Successfully fetch user by group`,
+      value: userIds,
+    };
+  }
+  
+  function getChannelUserMap(slackBotToken) {
+    const channelsResult = getChannels(slackBotToken);
+    const channelData = {};
+
+    if (!channelsResult.ok) {
+      return {
+        ok: false,
+        message: 'Error: ' + channelsResult.message,
+        value: {},
+      };
+    }
+    Object.values(channelsResult.value).forEach(channel => {
+      const membersResult = getChannelUser(channel.id, slackBotToken);
+      if (membersResult.ok) {
+        channelData[channel.id] = membersResult.value;
+      }
+    });
+  
+    return {
+      ok: true,
+      message: `Successfully fetch channel user map`,
+      value: {
+        channelList: channelsResult.value,
+        channelMembers: channelData,
+      },
+    };
+  }
+  
+  function getChannels(slackBotToken) {
+    const cached = CACHE.get('slack_channels_0001');
+    if (cached) {
+      console.log("using cache... [slack_channels_0001]");
+      return {
+        ok: true,
+        message: `Successfully fetch channels`,
+        value: JSON.parse(cached),
+      };
+    }
+  
+    const publicChannels = fetchChannelsFromSlack('conversations.list', {
+      types: 'public_channel',
+      exclude_archived: true,
+      limit: 1000
+    }, slackBotToken);
+    const privateChannels = fetchChannelsFromSlack('conversations.list', {
+      types: 'private_channel',
+      exclude_archived: true,
+      limit: 1000
+    }, slackBotToken);
+  
+    const allChannels = {};
+    [...publicChannels, ...privateChannels]
+      .filter(channel => channel.name)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .forEach(channel => {
+        allChannels[channel.id] = {
+          id: channel.id,
+          name: channel.name,
+          is_private: channel.is_private || false
+        }
+      })
+    
+    const cacheData = JSON.stringify(allChannels);
+    CACHE.put("slack_channels_0001", cacheData, CACHE_DURATION);
+  
+    return {
+      ok: true,
+      message: `Successfully fetch channels`,
+      value: allChannels,
+    };
+  }
+  
+  function fetchChannelsFromSlack(method, params, slackBotToken) {
+    const channels = [];
+    let cursor = null;
+    
+    do {
+      const requestParams = { ...params };
+      if (cursor) {
+        requestParams.cursor = cursor;
+      }
+  
+      const url = `https://slack.com/api/${method}?${buildQueryString(requestParams)}`;
+      
+      const response = UrlFetchApp.fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${slackBotToken}`,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
+  
+      const data = JSON.parse(response.getContentText());
+      
+      if (!data.ok) {
+        console.error(`Slack API error for ${method}:`, data.error);
+        break;
+      }
+  
+      if (data.channels) {
+        channels.push(...data.channels);
+      }
+  
+      cursor = data.response_metadata?.next_cursor;
+      
+      // Safety check to prevent infinite loops
+      if (channels.length > 5000) {
+        console.warn('Channel limit reached, stopping pagination');
+        break;
+      }
+      
+    } while (cursor);
+  
+    return channels;
+  }
+  
+  function buildQueryString(params) {
+    return Object.keys(params)
+      .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
+      .join('&');
+  }
+
   // Public methods that will be exposed
   return {
     // Core channel and message functions
@@ -914,15 +1251,6 @@ function slackManagerBot(scriptProperties, userProperties = null, options = {}) 
       return getUserGroupMembers(usergroupId, SLACK_BOT_TOKEN);
     },
 
-    // Process functions
-    processReactionRead: function (channelId, messageTs) {
-      return processReactionRead(channelId, messageTs, SLACK_BOT_TOKEN);
-    },
-
-    processReactionAny: function (channelId, messageTs) {
-      return processReactionAny(channelId, messageTs, SLACK_BOT_TOKEN);
-    },
-
     // Reaction functions
     addReaction: function (channelId, messageTs, reactionId) {
       return addReaction(channelId, messageTs, reactionId, SLACK_BOT_TOKEN);
@@ -938,25 +1266,58 @@ function slackManagerBot(scriptProperties, userProperties = null, options = {}) 
     },
 
     // Filter functions
-    filterMembers: function (userIds) {
-      return filterMembers(userIds, SLACK_BOT_TOKEN);
-    },
+    // filterMembers: function (userIds) {
+    //   return filterMembers(userIds, SLACK_BOT_TOKEN);
+    // },
 
-    filterNotReactionUsers: function (mentionedUsers, reactionUsers) {
-      return filterNotReactionUsers(mentionedUsers, reactionUsers);
-    },
+    // filterNotReactionUsers: function (mentionedUsers, reactionUsers) {
+    //   return filterNotReactionUsers(mentionedUsers, reactionUsers);
+    // },
 
     // Utility functions
-    orderReaction: function (reactionList) {
-      return orderReaction(reactionList);
+    // orderReaction: function (reactionList) {
+    //   return orderReaction(reactionList);
+    // },
+
+    // clearUserCache: function () {
+    //   return clearUserCache();
+    // },
+
+    // getCacheStatus: function () {
+    //   return getCacheStatus();
+    // },
+
+    getUserDetails: function () {
+      return getUserDetails(SLACK_BOT_TOKEN);
     },
 
-    clearUserCache: function () {
-      return clearUserCache();
+    getUserGroupMap: function () {
+      return getUserGroupMap(SLACK_BOT_TOKEN);
     },
 
-    getCacheStatus: function () {
-      return getCacheStatus();
+    getUserGroupList: function () {
+      return getUserGroupList(SLACK_BOT_TOKEN);
+    },
+
+    getUserByGroup: function (groupId) {
+      return getUserByGroup(groupId, SLACK_BOT_TOKEN);
+    },
+
+    getChannels: function () {
+      return getChannels(SLACK_BOT_TOKEN);
+    },
+
+    getChannelUserMap: function () {
+      return getChannelUserMap(SLACK_BOT_TOKEN);
+    },
+
+    // Process functions
+    processReactionRead: function (channelId, messageTs) {
+      return processReactionRead(channelId, messageTs, SLACK_BOT_TOKEN);
+    },
+
+    processReactionAny: function (channelId, messageTs) {
+      return processReactionAny(channelId, messageTs, SLACK_BOT_TOKEN);
     },
 
     // Configuration functions
