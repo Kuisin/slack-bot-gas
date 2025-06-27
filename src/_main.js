@@ -762,7 +762,7 @@ function slackManagerBot(scriptProperties, userProperties = null, options = {}, 
       };
     }
 
-    const { allUsers: mentionedUsers } = mentionedUsersResult.value;
+    const { toUsers: mentionedUsers } = mentionedUsersResult.value;
 
     const reactionUsersResult = getReactionUsers(
       channelId,
