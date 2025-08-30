@@ -41,10 +41,6 @@ jobs:
         # Clasp の状態を確認し、プロジェクトならプッシュ または、強制プッシュ
         # 元のディレクトリに戻る
       run: |
-        for dir in $(ls -d */); do
-          cd $dir
-          if clasp status; then  
-            clasp deploy --deploymentId AKfycbw__WXgNW9PmeRrAHIEaIaB5_Uqu5if73iuq6yYBRxFlSprD21sbC2U-IM-Io7sETGY_Q --description "Deploy from GitHub Actions - $(date +%Y.%m.%d)_$(git rev-parse --short HEAD)"
-          fi
-          cd ..
-        done
+        if clasp status; then  
+          clasp deploy --deploymentId AKfycbw__WXgNW9PmeRrAHIEaIaB5_Uqu5if73iuq6yYBRxFlSprD21sbC2U-IM-Io7sETGY_Q --description "Deploy from GitHub Actions - $(date +%Y.%m.%d)_$(git rev-parse --short HEAD)"
+        fi
