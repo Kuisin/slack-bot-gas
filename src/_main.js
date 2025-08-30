@@ -243,7 +243,7 @@ function slackManagerBot(
       thread_ts: messageTs,
       username: "Reaction Reminder",
       icon_emoji: `:${icon}:`,
-      // unfurl_links: unfurl_links,
+      unfurl_links: unfurl_links,
     };
     if (blocks && blocks.length > 0) {
       payload.blocks = blocks;
@@ -764,7 +764,6 @@ function slackManagerBot(
           {
             type: "mrkdwn",
             text: `<${generateMessageUrlResult.value}|メッセージを確認する>`,
-            unfurl_links: false,
           },
         ],
       },
