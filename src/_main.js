@@ -226,6 +226,7 @@ function slackManagerBot(
     icon = "bell",
     text,
     blocks = [],
+    unfurl_links = true,
     slackBotToken
   ) {
     if (!channelId || !text || !messageTs) {
@@ -242,6 +243,7 @@ function slackManagerBot(
       thread_ts: messageTs,
       username: "Reaction Reminder",
       icon_emoji: `:${icon}:`,
+      // unfurl_links: unfurl_links,
     };
     if (blocks && blocks.length > 0) {
       payload.blocks = blocks;
@@ -774,6 +776,7 @@ function slackManagerBot(
       TRIGGER_REACTION_READ,
       threadText,
       blocks,
+      false,
       slackBotToken
     );
 
@@ -927,6 +930,7 @@ function slackManagerBot(
       TRIGGER_REACTION_ANY,
       threadText,
       blocks,
+      false,
       slackBotToken
     );
     removeReaction(channelId, messageTs, TRIGGER_REACTION_ANY, slackBotToken);
@@ -1410,6 +1414,7 @@ function slackManagerBot(
         icon,
         text,
         [],
+        true,
         SLACK_BOT_TOKEN
       );
     },
