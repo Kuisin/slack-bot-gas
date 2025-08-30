@@ -736,6 +736,14 @@ function slackManagerBot(
         `\nリアクション :${REACTION_READ}: をお願いします！`;
     }
 
+    const generateMessageUrlResult = generateMessageUrl(channelId, messageTs, slackBotToken);
+    if (!generateMessageUrlResult.ok) {
+      return {
+        ok: false,
+        message: "Error: " + generateMessageUrlResult.message,
+      };
+    }
+
     const blocks = [
       {
         type: "section",
@@ -753,11 +761,7 @@ function slackManagerBot(
           },
           {
             type: "mrkdwn",
-            text: `<${generateMessageUrl(
-              channelId,
-              messageTs,
-              slackBotToken
-            )}|メッセージを確認する>`,
+            text: `<${generateMessageUrlResult.value}|メッセージを確認する>`,
           },
         ],
       },
@@ -884,6 +888,13 @@ function slackManagerBot(
         sentMessage: threadText,
       };
     }
+    const generateMessageUrlResult = generateMessageUrl(channelId, messageTs, slackBotToken);
+    if (!generateMessageUrlResult.ok) {
+      return {
+        ok: false,
+        message: "Error: " + generateMessageUrlResult.message,
+      };
+    }
 
     const blocks = [
       {
@@ -902,11 +913,7 @@ function slackManagerBot(
           },
           {
             type: "mrkdwn",
-            text: `<${generateMessageUrl(
-              channelId,
-              messageTs,
-              slackBotToken
-            )}|メッセージを確認する>`,
+            text: `<${generateMessageUrlResult.value}|メッセージを確認する>`,
           },
         ],
       },
