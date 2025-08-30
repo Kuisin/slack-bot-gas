@@ -789,7 +789,10 @@ function slackManagerBot(
         mentionedUsers: mentionedUsers,
         reactionUsers: reactionUsers[REACTION_READ],
         missingUsers: notReactionUser,
-        sentMessage: threadText,
+        sentMessage: {
+          text: threadText,
+          blocks: blocks,
+        },
       },
     };
   }
