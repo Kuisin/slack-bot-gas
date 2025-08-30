@@ -44,7 +44,6 @@ jobs:
         for dir in $(ls -d */); do
           cd $dir
           if clasp status; then  
-            clasp push  
             clasp deploy --deploymentId AKfycbw__WXgNW9PmeRrAHIEaIaB5_Uqu5if73iuq6yYBRxFlSprD21sbC2U-IM-Io7sETGY_Q --description "Deploy from GitHub Actions - $(date +%Y.%m.%d)_$(git rev-parse --short HEAD)"
           fi
           cd ..
