@@ -762,6 +762,7 @@ function slackManagerBot(
           {
             type: "mrkdwn",
             text: `<${generateMessageUrlResult.value}|メッセージを確認する>`,
+            unfurl_links: false,
           },
         ],
       },
@@ -914,6 +915,7 @@ function slackManagerBot(
           {
             type: "mrkdwn",
             text: `<${generateMessageUrlResult.value}|メッセージを確認する>`,
+            unfurl_links: false,
           },
         ],
       },
